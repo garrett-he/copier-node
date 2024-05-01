@@ -1,3 +1,4 @@
+import json
 import random
 
 from chance import chance
@@ -20,6 +21,7 @@ def generate_copier_answers():
         'project_description': chance.sentence(),
         'project_version': f'{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 10)}',
         'project_keywords': f'{chance.word()},{chance.word()},{chance.word()}',
+        'project_private': chance.pickone([True, False]),
         'copyright_holder_name': chance.name(),
         'copyright_holder_email': chance.email(),
         'copyright_license': chance.pickone(list(LICENSE_SPEC.keys())),
@@ -80,3 +82,22 @@ def test_template_licenses(copie: Copie):
         else:
             assert f'Copyright (C) {answers["copyright_year"]} {answers["copyright_holder_name"]} <{answers["copyright_holder_email"]}>' in readme
             assert f'see [{license_spec["filename"]}](./{license_spec["filename"]}).' in readme
+
+
+def test_template_package_json(copie: Copie):
+    answers = generate_copier_answers()
+    result = copie.copy(extra_answers=answers)
+
+    assert result.exit_code == 0
+    assert result.exception is None
+    assert result.project_dir.is_dir()
+
+    package_json = json.loads(result.project_dir.joinpath('package.json').read_text(encoding='utf-8'))
+    assert package_json['name'] == answers['project_name']
+    assert package_json['version'] == answers['project_version']
+    assert package_json['description'] == answers['project_description']
+    assert package_json['private'] == answers['project_private']
+    assert package_json['repository']['url'] == f'git+https://github.com/{answers["vcs_github_path"]}.git'
+    assert package_json['keywords'] == answers['project_keywords'].split(',')
+    assert package_json['author'] == f'{answers["copyright_holder_name"]} <{answers["copyright_holder_email"]}>'
+    assert package_json['license'] == answers['copyright_license']
